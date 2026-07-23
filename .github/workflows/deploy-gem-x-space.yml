@@ -164,6 +164,8 @@ jobs:
           event_id = response.json()["event_id"]
 
           completed = False
+          failed = False
+          current_event = None
           with httpx.stream(
               "GET",
               f"{base}/gradio_api/call/capture_motion/{event_id}",
@@ -174,10 +176,14 @@ jobs:
               for line in stream.iter_lines():
                   if line:
                       print(line, flush=True)
-                  if line == "event: complete":
+                  if line.startswith("event: "):
+                      current_event = line.removeprefix("event: ")
+                  elif line.startswith("data: ") and current_event == "complete":
                       completed = True
-                  if line == "event: error":
-                      raise SystemExit("Authenticated GEM-X smoke test failed")
+                  elif line.startswith("data: ") and current_event == "error":
+                      failed = True
+          if failed:
+              raise SystemExit("Authenticated GEM-X smoke test failed")
           if not completed:
               raise SystemExit("Authenticated GEM-X smoke test ended without completion")
           PY
