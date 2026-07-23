@@ -33,13 +33,17 @@ jobs:
           export GIT_LFS_SKIP_SMUDGE=1
           git clone --depth 1 https://github.com/NVlabs/GEM-X.git space
           git clone --depth 1 https://github.com/NVlabs/SOMA-X.git space/third_party/soma
-          git -C space/third_party/soma lfs pull --include="assets/SOMA_neutral.npz,assets/SOMA_template_rig.usda,assets/correctives_model.pt"
+          git -C space/third_party/soma lfs pull --include="assets/SOMA_neutral.npz,assets/SOMA_template_rig.usda,assets/correctives_model.pt,assets/MHR/mhr_model_lod6.pt,assets/MHR/base_body_lod6.obj,assets/MHR/SOMA_wrap_lod1.obj"
           env -u GIT_LFS_SKIP_SMUDGE git clone --depth 1 https://github.com/NVIDIA/soma-retargeter.git retargeter
           mkdir -p space/inputs/soma_assets
           cp space/third_party/soma/assets/SOMA_neutral.npz space/inputs/soma_assets/SOMA_neutral.npz
           cp space/third_party/soma/assets/SOMA_template_rig.usda space/inputs/soma_assets/SOMA_template_rig.usda
           cp space/third_party/soma/assets/SOMA_procedural_transforms.json space/inputs/soma_assets/SOMA_procedural_transforms.json
           cp space/third_party/soma/assets/correctives_model.pt space/inputs/soma_assets/correctives_model.pt
+          mkdir -p space/inputs/soma_assets/MHR
+          cp space/third_party/soma/assets/MHR/mhr_model_lod6.pt space/inputs/soma_assets/MHR/mhr_model_lod6.pt
+          cp space/third_party/soma/assets/MHR/base_body_lod6.obj space/inputs/soma_assets/MHR/base_body_lod6.obj
+          cp space/third_party/soma/assets/MHR/SOMA_wrap_lod1.obj space/inputs/soma_assets/MHR/SOMA_wrap_lod1.obj
           cp retargeter/soma_retargeter/configs/soma/soma_zero_frame0.bvh space/assets/soma_zero_frame0.bvh
           cp gem_x_deploy/README.md space/README.md
           cp gem_x_deploy/app.py space/app.py
