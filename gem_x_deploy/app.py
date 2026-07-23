@@ -49,7 +49,7 @@ def _prepare_video(source: str, destination: Path) -> None:
     )
 
 
-@spaces.GPU(duration=300)
+@spaces.GPU(duration=180)
 def capture_motion(
     video_path: str | None,
     camera_mode: str,
