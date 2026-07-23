@@ -51,6 +51,7 @@ jobs:
           cp gem_x_deploy/space_bvh.py space/space_bvh.py
           cp gem_x_deploy/requirements.txt space/requirements.txt
           cp gem_x_deploy/packages.txt space/packages.txt
+          rm space/.gitignore
           find space -name .git -type d -prune -exec rm -rf {} +
 
       - name: Install Hugging Face Hub client
