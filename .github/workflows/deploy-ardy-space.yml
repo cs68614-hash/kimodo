@@ -69,6 +69,25 @@ jobs:
               ],
               check=True,
           )
+          subprocess.run(
+              [
+                  "git",
+                  "-C",
+                  str(source_dir),
+                  "apply",
+                  "--recount",
+                  str(root / "ardy_deploy" / "ardy-timeline.patch"),
+              ],
+              check=True,
+          )
+          subprocess.run(
+              [
+                  "python",
+                  str(source_dir / "tests" / "test_timeline_utils.py"),
+              ],
+              check=True,
+              env={**os.environ, "PYTHONPATH": str(source_dir)},
+          )
           shutil.rmtree(source_dir / ".git", ignore_errors=True)
 
           token = os.environ["HF_TOKEN"]
