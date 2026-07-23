@@ -57,11 +57,11 @@ def _skeleton(body_params: dict):
     identity = body_params.get("identity_coeffs")
     scales = body_params.get("scale_params")
     if identity is None:
-        identity = torch.zeros(1, 64)
+        identity = torch.zeros(1, 45)
     if scales is None:
         scales = torch.zeros(1, 69)
 
-    identity = torch.as_tensor(_numpy(identity), dtype=torch.float32).reshape(-1, 64)[:1]
+    identity = torch.as_tensor(_numpy(identity), dtype=torch.float32).reshape(-1, 45)[:1]
     scales = torch.as_tensor(_numpy(scales), dtype=torch.float32).reshape(-1, 69)[:1]
     soma = SomaLayer(
         data_root="inputs/soma_assets",
