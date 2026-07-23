@@ -80,6 +80,36 @@ jobs:
               ],
               check=True,
           )
+          readme_path = source_dir / "README.md"
+          readme_text = readme_path.read_text(encoding="utf-8")
+          if not readme_text.startswith("---\n"):
+              raise RuntimeError("Space README.md has no YAML frontmatter")
+          frontmatter_end = readme_text.find("\n---", 4)
+          if frontmatter_end < 0:
+              raise RuntimeError("Space README.md frontmatter is not closed")
+          frontmatter = readme_text[:frontmatter_end]
+          body = readme_text[frontmatter_end:]
+
+          if "startup_duration_timeout:" in frontmatter:
+              import re
+              frontmatter = re.sub(
+                  r"(?m)^startup_duration_timeout:.*$",
+                  "startup_duration_timeout: 1h",
+                  frontmatter,
+              )
+          else:
+              frontmatter += "\nstartup_duration_timeout: 1h"
+
+          if "preload_from_hub:" not in frontmatter:
+              frontmatter += (
+                  "\npreload_from_hub:\n"
+                  "  - unsloth/llama-3-8b-Instruct\n"
+                  "  - McGill-NLP/LLM2Vec-Meta-Llama-3-8B-Instruct-mntp\n"
+                  "  - McGill-NLP/LLM2Vec-Meta-Llama-3-8B-Instruct-mntp-supervised"
+              )
+
+          readme_path.write_text(frontmatter + body, encoding="utf-8")
+
           subprocess.run(
               [
                   "python",
@@ -144,11 +174,20 @@ jobs:
           repo_id = f"{username}/ardy-motion-api"
 
           stage = "BUILDING"
-          for _ in range(48):
+          runtime_error_count = 0
+          for _ in range(360):
               stage = api.get_space_runtime(repo_id).stage
               print(f"Space stage: {stage}", flush=True)
-              if stage in {"RUNNING", "BUILD_ERROR", "RUNTIME_ERROR"}:
+              if stage == "RUNNING":
                   break
+              if stage == "BUILD_ERROR":
+                  break
+              if stage == "RUNTIME_ERROR":
+                  runtime_error_count += 1
+                  if runtime_error_count >= 12:
+                      break
+              else:
+                  runtime_error_count = 0
               time.sleep(10)
 
           if stage != "RUNNING":
