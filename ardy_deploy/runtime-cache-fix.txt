@@ -1,0 +1,6 @@
+ARDY Space runtime cache fix
+
+- Preload the LLM2Vec and ARDY motion repositories during the Space build.
+- Keep the preloaded Hub cache read-only at runtime.
+- Route mutable Xet chunks and logs to /tmp/huggingface-xet.
+- Resolve ARDY motion snapshots from the local Hub cache before network access.
