@@ -1,0 +1,129 @@
+diff --git a/app.py b/app.py
+index b60e0af..c6f9ef0 100644
+--- a/app.py
++++ b/app.py
+@@ -521,17 +521,37 @@ def generate_blender_motion(
+         randomize_seed,
+         None,
+     )
++    return _export_motion_files("human", motion_np, prompt, seed)
++
++
++def _export_motion_files(
++    rig: str,
++    motion_np: np.ndarray,
++    prompt: str,
++    seed: int,
++) -> tuple[str, str, str, int]:
++    """Decode an accumulated ARDY sequence and write Blender export files."""
++    rig_key = _normalize_rig(rig)
++    if motion_np is None:
++        raise gr.Error(
++            "Generate a motion first, then use Continue to extend it before exporting."
++        )
++
++    motion_np = np.asarray(motion_np)
++    if motion_np.ndim != 3 or motion_np.shape[0] != 1 or motion_np.shape[1] < 1:
++        raise gr.Error(f"Invalid ARDY sequence state: shape={motion_np.shape}")
++
+     motion_tensor = torch.from_numpy(motion_np).to("cuda")
+-    out = _decode_motion("human", motion_tensor)
+-    r = RIGS["human"]
++    out = _decode_motion(rig_key, motion_tensor)
++    r = RIGS[rig_key]
+     skeleton = r["skeleton"]
+     joint_names = list(skeleton.bone_order_names)
+     parents = list(r["parents"])
+     rest_positions = to_numpy(skeleton.neutral_joints)
+ 
+     output_dir = Path(tempfile.mkdtemp(prefix="ardy_blender_"))
+-    npz_path = output_dir / "ardy_motion.npz"
+-    bvh_path = output_dir / "ardy_motion.bvh"
++    npz_path = output_dir / f"ardy_{rig_key}_motion.npz"
++    bvh_path = output_dir / f"ardy_{rig_key}_motion.bvh"
+     metadata_path = output_dir / "metadata.json"
+ 
+     np.savez_compressed(
+@@ -540,7 +560,7 @@ def generate_blender_motion(
+         fps=np.asarray(r["fps"], dtype=np.float32),
+         text=np.asarray(prompt),
+         seed=np.asarray(seed, dtype=np.int64),
+-        rig=np.asarray("human"),
++        rig=np.asarray(rig_key),
+         joint_names=np.asarray(joint_names),
+         parents=np.asarray(parents, dtype=np.int32),
+         rest_positions=np.asarray(rest_positions, dtype=np.float32),
+@@ -557,15 +577,23 @@ def generate_blender_motion(
+     metadata_path.write_text(
+         json.dumps(
+             {
+-                "model": "nvidia/ARDY-Core-RP-20FPS-Horizon40",
+-                "rig": "human",
+-                "prompt": prompt,
+-                "seed": seed,
++                "model": (
++                    "nvidia/ARDY-Core-RP-20FPS-Horizon40"
++                    if rig_key == "human"
++                    else "nvidia/ARDY-G1-RP-25FPS-Horizon52"
++                ),
++                "rig": rig_key,
++                "latest_prompt": prompt,
++                "seed": int(seed),
+                 "fps": r["fps"],
+                 "frames": int(out["posed_joints"].shape[0]),
++                "duration_seconds": (
++                    float(out["posed_joints"].shape[0]) / float(r["fps"])
++                ),
+                 "joints": joint_names,
+                 "parents": parents,
+                 "coordinate_system": "Y-up, metric",
++                "source": "current accumulated Generate/Continue sequence",
+                 "post_processing": False,
+             },
+             ensure_ascii=False,
+@@ -573,7 +601,18 @@ def generate_blender_motion(
+         ),
+         encoding="utf-8",
+     )
+-    return str(bvh_path), str(npz_path), str(metadata_path), seed
++    return str(bvh_path), str(npz_path), str(metadata_path), int(seed)
++
++
++@spaces.GPU
++def export_current_sequence(
++    state: object,
++    rig: str = DEFAULT_RIG,
++    prompt: str = "",
++    seed: int = 0,
++) -> tuple[str, str, str, int]:
++    """Export the complete sequence currently held by Generate/Continue."""
++    return _export_motion_files(rig, state, prompt, seed)
+ 
+ 
+ # -----------------------------------------------------------------------------
+@@ -1051,10 +1090,11 @@ with gr.Blocks() as demo:
+ 
+         with gr.Accordion("Blender export", open=False):
+             gr.Markdown(
+-                "Generate the human rig as **BVH**, full-fidelity **NPZ**, and "
+-                "JSON metadata. Import the BVH directly in Blender."
++                "Export the **complete motion currently in the player**, including "
++                "every segment added with **Continue ▸**, as Blender **BVH**, "
++                "full-fidelity **NPZ**, and JSON metadata."
+             )
+-            export_blender = gr.Button("Generate Blender files", variant="secondary")
++            export_blender = gr.Button("Export current sequence", variant="secondary")
+             with gr.Row():
+                 bvh_file = gr.File(label="Blender BVH")
+                 npz_file = gr.File(label="ARDY NPZ")
+@@ -1089,8 +1129,8 @@ with gr.Blocks() as demo:
+     cont.click(fn=ui_continue, inputs=_gen_inputs + [seq_state],
+                outputs=[player, seed, seq_state], api_name=False)
+     export_blender.click(
+-        fn=generate_blender_motion,
+-        inputs=[prompt, duration, diffusion_steps, cfg_weight, seed, randomize_seed],
++        fn=export_current_sequence,
++        inputs=[seq_state, rig, prompt, seed],
+         outputs=[bvh_file, npz_file, metadata_file, seed],
+         api_name=False,
+     )
