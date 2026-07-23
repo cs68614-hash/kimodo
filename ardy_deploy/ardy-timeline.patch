@@ -1,13 +1,6 @@
 diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
-@@ -28,6 +28,7 @@ from ardy.model.load_model import load_text_encoder  # noqa: E402
- from ardy.motion_rep.tools import length_to_mask  # noqa: E402
- from ardy.tools import seed_everything, to_numpy  # noqa: E402
-+from timeline_utils import normalize_timeline  # noqa: E402
- 
- 
- # -----------------------------------------------------------------------------
 @@ -576,6 +577,93 @@ def generate_blender_motion(
      )
      return str(bvh_path), str(npz_path), str(metadata_path), seed
@@ -22,6 +15,8 @@ diff --git a/app.py b/app.py
 +    randomize_seed: bool = True,
 +) -> tuple[str, str, str, int]:
 +    """Generate sequential prompts as one autoregressively continuous motion."""
++    from timeline_utils import normalize_timeline
++
 +    r = RIGS["human"]
 +    segments = normalize_timeline(timeline, fps=float(r["fps"]))
 +    motion_np = None
