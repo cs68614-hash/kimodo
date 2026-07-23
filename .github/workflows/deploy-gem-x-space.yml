@@ -19,7 +19,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ secrets.HF_TOKEN != '' }}
     steps:
       - name: Check out deployment repository
         uses: actions/checkout@v4
