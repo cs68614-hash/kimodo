@@ -91,6 +91,27 @@ jobs:
               ],
               commit_message="Deploy GEM-X ZeroGPU motion capture",
           )
+          soma_assets = [
+              "inputs/soma_assets/SOMA_neutral.npz",
+              "inputs/soma_assets/SOMA_template_rig.usda",
+              "inputs/soma_assets/SOMA_procedural_transforms.json",
+              "inputs/soma_assets/correctives_model.pt",
+              "inputs/soma_assets/MHR/mhr_model_lod6.pt",
+              "inputs/soma_assets/MHR/base_body_lod6.obj",
+              "inputs/soma_assets/MHR/SOMA_wrap_lod1.obj",
+          ]
+          for asset in soma_assets:
+              api.upload_file(
+                  repo_id=repo_id,
+                  repo_type="space",
+                  path_or_fileobj=f"space/{asset}",
+                  path_in_repo=asset,
+                  commit_message=f"Upload {asset}",
+              )
+          remote_files = set(api.list_repo_files(repo_id=repo_id, repo_type="space"))
+          missing_assets = [asset for asset in soma_assets if asset not in remote_files]
+          if missing_assets:
+              raise RuntimeError(f"Missing uploaded SOMA assets: {missing_assets}")
           api.request_space_hardware(repo_id=repo_id, hardware="zero-a10g")
           print(f"Space deployed to https://huggingface.co/spaces/{repo_id}")
           PY
