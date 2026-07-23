@@ -3,12 +3,20 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import cv2
 import torch
 from huggingface_hub import snapshot_download
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+SOMA_SOURCE = PROJECT_ROOT / "third_party" / "soma"
+for source_dir in (PROJECT_ROOT, SOMA_SOURCE):
+    source = str(source_dir)
+    if source not in sys.path:
+        sys.path.insert(0, source)
 
 
 def ensure_soma_assets() -> Path:
