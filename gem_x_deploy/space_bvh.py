@@ -14,9 +14,12 @@ def _numpy(value):
     return np.asarray(value)
 
 
-def _read_reference_hierarchy(path: Path) -> tuple[list[str], list[int]]:
+def _read_reference_hierarchy(
+    path: Path,
+) -> tuple[list[str], list[int], np.ndarray]:
     names: list[str] = []
     parents: list[int] = []
+    rest_euler: list[list[float]] = []
     stack: list[int] = []
     pending: int | None = None
     in_end_site = False
@@ -28,6 +31,7 @@ def _read_reference_hierarchy(path: Path) -> tuple[list[str], list[int]]:
             parent = stack[-1] if stack else -1
             names.append(match.group(2).strip())
             parents.append(parent)
+            rest_euler.append([0.0, 0.0, 0.0])
             pending = len(names) - 1
             in_end_site = False
             continue
@@ -45,10 +49,27 @@ def _read_reference_hierarchy(path: Path) -> tuple[list[str], list[int]]:
             continue
         if line == "}" and stack:
             stack.pop()
+            continue
+        if line.startswith("OFFSET ") and stack and stack[-1] >= 0:
+            values = [float(value) for value in line.split()[1:]]
+            # NVIDIA's reference BVH stores a rest-orientation triplet after
+            # the usual XYZ offset. The channel order is Z, Y, X.
+            if len(values) >= 6:
+                rest_euler[stack[-1]] = values[3:6]
 
     if len(names) != 78:
         raise RuntimeError(f"Expected 78 reference nodes, found {len(names)}.")
-    return names, parents
+    return names, parents, np.asarray(rest_euler, dtype=np.float64)
+
+
+def _reference_world_orientations(
+    parents: list[int], rest_euler: np.ndarray
+) -> list[Rotation]:
+    local = Rotation.from_euler("ZYX", rest_euler, degrees=True)
+    world: list[Rotation] = []
+    for joint, parent in enumerate(parents):
+        world.append(local[joint] if parent < 0 else world[parent] * local[joint])
+    return world
 
 
 def _skeleton(body_params: dict):
@@ -143,12 +164,11 @@ def export_both_bvhs(
     virtual_root_path: Path,
 ) -> None:
     reference = Path("assets/soma_zero_frame0.bvh")
-    names78, parents78 = _read_reference_hierarchy(reference)
+    names78, parents78, rest_euler78 = _read_reference_hierarchy(reference)
     positions77 = _skeleton(body_params)
     positions78 = np.concatenate([np.zeros((1, 3), np.float32), positions77], axis=0)
 
-    rig = np.load("inputs/soma_assets/SOMA_neutral.npz", allow_pickle=False)
-    orient = Rotation.from_matrix(rig["t_pose_world"][..., :3, :3])
+    orient = _reference_world_orientations(parents78, rest_euler78)
     rotvecs, translation = _motion_data(body_params)
     frames = len(rotvecs)
 
