@@ -39,9 +39,9 @@ jobs:
           cp space/third_party/soma/assets/SOMA_neutral.npz space/inputs/soma_assets/SOMA_neutral.npz
           cp space/third_party/soma/assets/SOMA_template_rig.usda space/inputs/soma_assets/SOMA_template_rig.usda
           cp space/third_party/soma/assets/SOMA_procedural_transforms.json space/inputs/soma_assets/SOMA_procedural_transforms.json
-          cp space/third_party/soma/assets/correctives_model.pt space/inputs/soma_assets/correctives_model.pt
+          cp space/third_party/soma/assets/correctives_model.pt space/inputs/soma_assets/correctives_model.bin
           mkdir -p space/inputs/soma_assets/MHR
-          cp space/third_party/soma/assets/MHR/mhr_model_lod6.pt space/inputs/soma_assets/MHR/mhr_model_lod6.pt
+          cp space/third_party/soma/assets/MHR/mhr_model_lod6.pt space/inputs/soma_assets/MHR/mhr_model_lod6.bin
           cp space/third_party/soma/assets/MHR/base_body_lod6.obj space/inputs/soma_assets/MHR/base_body_lod6.obj
           cp space/third_party/soma/assets/MHR/SOMA_wrap_lod1.obj space/inputs/soma_assets/MHR/SOMA_wrap_lod1.obj
           cp retargeter/soma_retargeter/configs/soma/soma_zero_frame0.bvh space/assets/soma_zero_frame0.bvh
@@ -95,8 +95,8 @@ jobs:
               "inputs/soma_assets/SOMA_neutral.npz",
               "inputs/soma_assets/SOMA_template_rig.usda",
               "inputs/soma_assets/SOMA_procedural_transforms.json",
-              "inputs/soma_assets/correctives_model.pt",
-              "inputs/soma_assets/MHR/mhr_model_lod6.pt",
+              "inputs/soma_assets/correctives_model.bin",
+              "inputs/soma_assets/MHR/mhr_model_lod6.bin",
               "inputs/soma_assets/MHR/base_body_lod6.obj",
               "inputs/soma_assets/MHR/SOMA_wrap_lod1.obj",
           ]
