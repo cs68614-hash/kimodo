@@ -1,4 +1,5 @@
 name: Deploy ARDY ZeroGPU Space
+# Runtime cache policy: preloaded Hub snapshots + writable /tmp Xet cache.
 
 on:
   workflow_dispatch:
