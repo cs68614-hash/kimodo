@@ -4,3 +4,4 @@ ARDY Space runtime cache fix
 - Keep the preloaded Hub cache read-only at runtime.
 - Route mutable Xet chunks and logs to /tmp/huggingface-xet.
 - Resolve ARDY motion snapshots from the local Hub cache before network access.
+- Final deployment trigger issued after earlier delayed workflow events were drained.
