@@ -77,7 +77,7 @@ jobs:
                   str(source_dir),
                   "apply",
                   "--recount",
-                  str(root / "ardy_deploy" / "ardy-timeline.patch"),
+                  str(root / "ardy_deploy" / "ardy-continuous-export.patch"),
               ],
               check=True,
           )
@@ -127,7 +127,7 @@ jobs:
           subprocess.run(
               [
                   "python",
-                  str(source_dir / "tests" / "test_timeline_utils.py"),
+                  str(source_dir / "tests" / "test_bvh.py"),
               ],
               check=True,
               env={**os.environ, "PYTHONPATH": str(source_dir)},
@@ -138,7 +138,7 @@ jobs:
                   "-m",
                   "py_compile",
                   str(source_dir / "app.py"),
-                  str(source_dir / "timeline_utils.py"),
+                  str(source_dir / "ardy" / "exports" / "bvh.py"),
               ],
               check=True,
           )
