@@ -130,7 +130,6 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          ffmpeg -y -loglevel error -i space/assets/demo_2d_keypoints.gif -t 2 -vf "fps=15,scale=480:-2" -an -c:v libx264 -pix_fmt yuv420p /tmp/gemx-smoke.mp4
           python - <<'PY'
           import json
           import os
@@ -139,11 +138,11 @@ jobs:
 
           base = "https://cs686-gem-x-motion-capture.hf.space"
           headers = {"Authorization": f"Bearer {os.environ['HF_TOKEN']}"}
-          with open("/tmp/gemx-smoke.mp4", "rb") as handle:
+          with open("space/assets/demo_2d_keypoints.gif", "rb") as handle:
               upload = httpx.post(
                   f"{base}/gradio_api/upload",
                   headers=headers,
-                  files={"files": ("gemx-smoke.mp4", handle, "video/mp4")},
+                  files={"files": ("gemx-smoke.gif", handle, "image/gif")},
                   timeout=60,
               )
           upload.raise_for_status()
