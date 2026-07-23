@@ -29,8 +29,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Hugging Face Hub client
-        run: python -m pip install --upgrade "huggingface_hub>=1.0"
+      - name: Install deployment test dependencies
+        run: python -m pip install --upgrade "huggingface_hub>=1.0" numpy scipy
 
       - name: Build and deploy ARDY Space
         env:
