@@ -92,7 +92,7 @@ jobs:
           import os
           import time
 
-          import requests
+          import httpx
           from huggingface_hub import HfApi
 
           token = os.environ["HF_TOKEN"]
@@ -110,7 +110,7 @@ jobs:
               time.sleep(10)
 
           if stage != "RUNNING":
-              response = requests.get(
+              response = httpx.get(
                   f"https://huggingface.co/api/spaces/{repo_id}/logs/build",
                   headers={"Authorization": f"Bearer {token}"},
                   timeout=30,
