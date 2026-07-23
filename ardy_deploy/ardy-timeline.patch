@@ -1,0 +1,291 @@
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -28,6 +28,7 @@ from ardy.model.load_model import load_text_encoder  # noqa: E402
+ from ardy.motion_rep.tools import length_to_mask  # noqa: E402
+ from ardy.tools import seed_everything, to_numpy  # noqa: E402
++from timeline_utils import normalize_timeline  # noqa: E402
+ 
+ 
+ # -----------------------------------------------------------------------------
+@@ -576,6 +577,93 @@ def generate_blender_motion(
+     )
+     return str(bvh_path), str(npz_path), str(metadata_path), seed
+ 
++
++@spaces.GPU
++def generate_timeline_motion(
++    timeline,
++    diffusion_steps: int = NUM_BASE_STEPS,
++    cfg_weight: float = 2.0,
++    seed: int = 0,
++    randomize_seed: bool = True,
++) -> tuple[str, str, str, int]:
++    """Generate sequential prompts as one autoregressively continuous motion."""
++    r = RIGS["human"]
++    segments = normalize_timeline(timeline, fps=float(r["fps"]))
++    motion_np = None
++    resolved_seed = int(seed)
++
++    for index, segment in enumerate(segments):
++        _, resolved_seed, motion_np = _core_generate(
++            "human",
++            segment["prompt"],
++            segment["duration_seconds"],
++            diffusion_steps,
++            cfg_weight,
++            resolved_seed,
++            bool(randomize_seed) if index == 0 else False,
++            motion_np,
++        )
++
++    if motion_np is None:
++        raise gr.Error("The timeline did not contain any motion segments.")
++
++    motion_tensor = torch.from_numpy(motion_np).to("cuda")
++    out = _decode_motion("human", motion_tensor)
++    skeleton = r["skeleton"]
++    joint_names = list(skeleton.bone_order_names)
++    parents = list(r["parents"])
++    rest_positions = to_numpy(skeleton.neutral_joints)
++
++    output_dir = Path(tempfile.mkdtemp(prefix="ardy_timeline_"))
++    npz_path = output_dir / "ardy_timeline_motion.npz"
++    bvh_path = output_dir / "ardy_timeline_motion.bvh"
++    metadata_path = output_dir / "timeline_metadata.json"
++
++    timeline_json = json.dumps(segments, ensure_ascii=False)
++    np.savez_compressed(
++        npz_path,
++        **out,
++        fps=np.asarray(r["fps"], dtype=np.float32),
++        text=np.asarray(timeline_json),
++        seed=np.asarray(resolved_seed, dtype=np.int64),
++        rig=np.asarray("human"),
++        joint_names=np.asarray(joint_names),
++        parents=np.asarray(parents, dtype=np.int32),
++        rest_positions=np.asarray(rest_positions, dtype=np.float32),
++    )
++    write_bvh(
++        bvh_path,
++        joint_names=joint_names,
++        parents=parents,
++        rest_positions=rest_positions,
++        local_rot_mats=out["local_rot_mats"],
++        root_positions=out["root_positions"],
++        fps=r["fps"],
++    )
++    metadata_path.write_text(
++        json.dumps(
++            {
++                "model": "nvidia/ARDY-Core-RP-20FPS-Horizon40",
++                "rig": "human",
++                "seed": resolved_seed,
++                "fps": r["fps"],
++                "frames": int(out["posed_joints"].shape[0]),
++                "duration_seconds": float(out["posed_joints"].shape[0]) / float(r["fps"]),
++                "segments": segments,
++                "joints": joint_names,
++                "parents": parents,
++                "coordinate_system": "Y-up, metric",
++                "generation_mode": "autoregressive timeline",
++                "post_processing": False,
++            },
++            ensure_ascii=False,
++            indent=2,
++        ),
++        encoding="utf-8",
++    )
++    return str(bvh_path), str(npz_path), str(metadata_path), resolved_seed
++
+ 
+ # -----------------------------------------------------------------------------
+ # Front-end: a self-contained Three.js playground, delivered as a Gradio-native
+@@ -1060,6 +1148,33 @@ with gr.Blocks() as demo:
+                 npz_file = gr.File(label="ARDY NPZ")
+                 metadata_file = gr.File(label="Metadata")
+ 
++        with gr.Accordion("Continuous action timeline", open=True):
++            gr.Markdown(
++                "Add one short instruction per row. ARDY carries the previous pose and "
++                "root trajectory into the next row, producing one continuous motion. "
++                "The combined duration may not exceed 8 seconds."
++            )
++            timeline_input = gr.Dataframe(
++                headers=["Action prompt", "Duration (seconds)"],
++                datatype=["str", "number"],
++                type="array",
++                row_count=(4, "dynamic"),
++                col_count=(2, "fixed"),
++                value=[
++                    ["Walk forward two steps.", 2.0],
++                    ["Turn around smoothly.", 2.0],
++                    ["Wave the right hand.", 2.0],
++                    ["Sit down on the ground.", 2.0],
++                ],
++                label="Action segments",
++            )
++            generate_timeline = gr.Button(
++                "Generate continuous timeline",
++                variant="primary",
++            )
++            with gr.Row():
++                timeline_bvh = gr.File(label="Continuous Blender BVH")
++                timeline_npz = gr.File(label="Continuous ARDY NPZ")
++                timeline_metadata = gr.File(label="Timeline metadata")
++
+         gr.Examples(
+             examples=EXAMPLES,
+             inputs=[prompt, rig, duration],
+@@ -1095,10 +1210,18 @@ with gr.Blocks() as demo:
+         api_name=False,
+     )
++    generate_timeline.click(
++        fn=generate_timeline_motion,
++        inputs=[timeline_input, diffusion_steps, cfg_weight, seed, randomize_seed],
++        outputs=[timeline_bvh, timeline_npz, timeline_metadata, seed],
++        api_name=False,
++        concurrency_limit=1,
++    )
+ 
+     # Clean single-shot endpoint for the HTTP API / MCP tool (no session state).
+     gr.api(generate_motion, api_name="generate")
+     gr.api(generate_blender_motion, api_name="generate_blender")
++    gr.api(generate_timeline_motion, api_name="generate_timeline")
+ 
+ demo.queue()
+diff --git a/timeline_utils.py b/timeline_utils.py
+new file mode 100644
+--- /dev/null
++++ b/timeline_utils.py
+@@ -0,0 +1,83 @@
++"""Validation helpers for ARDY's continuous action timeline."""
++
++from __future__ import annotations
++
++import math
++from typing import Any
++
++
++MIN_SEGMENT_SECONDS = 0.5
++MAX_SEGMENT_SECONDS = 4.0
++MAX_TOTAL_SECONDS = 8.0
++MAX_SEGMENTS = 8
++MAX_PROMPT_CHARS = 500
++
++
++def _rows(value: Any) -> list:
++    if value is None:
++        return []
++    if hasattr(value, "values"):
++        return value.values.tolist()
++    if hasattr(value, "tolist") and not isinstance(value, list):
++        return value.tolist()
++    return list(value)
++
++
++def normalize_timeline(value: Any, *, fps: float) -> list[dict]:
++    """Normalize Gradio table rows and calculate exact frame ranges."""
++    if not math.isfinite(float(fps)) or float(fps) <= 0:
++        raise ValueError("FPS must be greater than zero.")
++
++    clean_rows = []
++    for row in _rows(value):
++        if row is None:
++            continue
++        row = list(row)
++        prompt = " ".join(str(row[0] if row else "").split())
++        duration_value = row[1] if len(row) > 1 else None
++        if not prompt and duration_value in (None, ""):
++            continue
++        if not prompt:
++            raise ValueError("Every timeline row must contain an action prompt.")
++        if len(prompt) > MAX_PROMPT_CHARS:
++            raise ValueError(
++                f"Each action prompt must contain at most {MAX_PROMPT_CHARS} characters."
++            )
++        try:
++            duration = float(duration_value)
++        except (TypeError, ValueError) as exc:
++            raise ValueError(
++                f"Duration for '{prompt}' must be a number."
++            ) from exc
++        if not math.isfinite(duration) or not MIN_SEGMENT_SECONDS <= duration <= MAX_SEGMENT_SECONDS:
++            raise ValueError(
++                f"Each segment must be between {MIN_SEGMENT_SECONDS:g} "
++                f"and {MAX_SEGMENT_SECONDS:g} seconds."
++            )
++        clean_rows.append((prompt, duration))
++
++    if not clean_rows:
++        raise ValueError("Add at least one action to the timeline.")
++    if len(clean_rows) > MAX_SEGMENTS:
++        raise ValueError(f"The timeline supports at most {MAX_SEGMENTS} segments.")
++    if sum(duration for _, duration in clean_rows) > MAX_TOTAL_SECONDS + 1e-6:
++        raise ValueError(
++            f"The combined timeline may not exceed {MAX_TOTAL_SECONDS:g} seconds."
++        )
++
++    segments = []
++    start_frame = 0
++    for prompt, duration in clean_rows:
++        frame_count = max(1, int(round(duration * float(fps))))
++        end_frame = start_frame + frame_count
++        segments.append(
++            {
++                "prompt": prompt,
++                "duration_seconds": frame_count / float(fps),
++                "start_frame": start_frame,
++                "end_frame": end_frame,
++            }
++        )
++        start_frame = end_frame
++    return segments
+diff --git a/tests/test_timeline_utils.py b/tests/test_timeline_utils.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_timeline_utils.py
+@@ -0,0 +1,43 @@
++import unittest
++
++from timeline_utils import normalize_timeline
++
++
++class TimelineValidationTests(unittest.TestCase):
++    def test_builds_contiguous_frame_ranges(self):
++        result = normalize_timeline(
++            [
++                ["Walk forward two steps.", 2],
++                ["Turn around.", 1.5],
++                ["Wave.", 0.5],
++            ],
++            fps=20,
++        )
++        self.assertEqual(result[0]["start_frame"], 0)
++        self.assertEqual(result[0]["end_frame"], 40)
++        self.assertEqual(result[1]["start_frame"], 40)
++        self.assertEqual(result[1]["end_frame"], 70)
++        self.assertEqual(result[2]["start_frame"], 70)
++        self.assertEqual(result[2]["end_frame"], 80)
++
++    def test_ignores_blank_rows(self):
++        result = normalize_timeline(
++            [["Stand still.", 1], ["", None]],
++            fps=20,
++        )
++        self.assertEqual(len(result), 1)
++
++    def test_rejects_more_than_eight_seconds(self):
++        with self.assertRaisesRegex(ValueError, "may not exceed 8 seconds"):
++            normalize_timeline(
++                [["Walk.", 4], ["Wave.", 4], ["Sit.", 1]],
++                fps=20,
++            )
++
++    def test_rejects_missing_prompt(self):
++        with self.assertRaisesRegex(ValueError, "action prompt"):
++            normalize_timeline([["", 2]], fps=20)
++
++
++if __name__ == "__main__":
++    unittest.main()
