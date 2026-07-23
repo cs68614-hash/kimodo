@@ -1,5 +1,3 @@
--e .
--e ./third_party/soma
 torchvision
 timm==0.6.7
 lightning==2.6.1
@@ -23,3 +21,7 @@ transformers
 wandb
 open3d
 onnxruntime-gpu
+warp-lang
+rtree
+cholespy
+usd-core
