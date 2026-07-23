@@ -34,6 +34,8 @@ jobs:
           git clone --depth 1 https://github.com/NVlabs/GEM-X.git space
           git clone --depth 1 https://github.com/NVlabs/SOMA-X.git space/third_party/soma
           env -u GIT_LFS_SKIP_SMUDGE git clone --depth 1 https://github.com/NVIDIA/soma-retargeter.git retargeter
+          mkdir -p space/inputs/soma_assets
+          cp space/third_party/soma/assets/SOMA_procedural_transforms.json space/inputs/soma_assets/SOMA_procedural_transforms.json
           cp retargeter/soma_retargeter/configs/soma/soma_zero_frame0.bvh space/assets/soma_zero_frame0.bvh
           cp gem_x_deploy/README.md space/README.md
           cp gem_x_deploy/app.py space/app.py
