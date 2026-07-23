@@ -23,6 +23,7 @@ diff --git a/app.py b/app.py
 +    resolved_seed = int(seed)
 +
 +    for index, segment in enumerate(segments):
++        start_frame = 0 if motion_np is None else int(motion_np.shape[1])
 +        _, resolved_seed, motion_np = _core_generate(
 +            "human",
 +            segment["prompt"],
@@ -33,6 +34,10 @@ diff --git a/app.py b/app.py
 +            bool(randomize_seed) if index == 0 else False,
 +            motion_np,
 +        )
++        end_frame = int(motion_np.shape[1])
++        segment["start_frame"] = start_frame
++        segment["end_frame"] = end_frame
++        segment["duration_seconds"] = (end_frame - start_frame) / float(r["fps"])
 +
 +    if motion_np is None:
 +        raise gr.Error("The timeline did not contain any motion segments.")
@@ -104,7 +109,8 @@ diff --git a/app.py b/app.py
 +            gr.Markdown(
 +                "Add one short instruction per row. ARDY carries the previous pose and "
 +                "root trajectory into the next row, producing one continuous motion. "
-+                "The combined duration may not exceed 8 seconds."
++                "Each segment is 2–4 seconds (the model's generation window is 2 seconds), "
++                "and the combined duration may not exceed 8 seconds."
 +            )
 +            timeline_input = gr.Dataframe(
 +                headers=["Action prompt", "Duration (seconds)"],
@@ -162,7 +168,7 @@ new file mode 100644
 +from typing import Any
 +
 +
-+MIN_SEGMENT_SECONDS = 0.5
++MIN_SEGMENT_SECONDS = 2.0
 +MAX_SEGMENT_SECONDS = 4.0
 +MAX_TOTAL_SECONDS = 8.0
 +MAX_SEGMENTS = 8
@@ -251,21 +257,21 @@ new file mode 100644
 +        result = normalize_timeline(
 +            [
 +                ["Walk forward two steps.", 2],
-+                ["Turn around.", 1.5],
-+                ["Wave.", 0.5],
++                ["Turn around.", 2],
++                ["Wave.", 2],
 +            ],
 +            fps=20,
 +        )
 +        self.assertEqual(result[0]["start_frame"], 0)
 +        self.assertEqual(result[0]["end_frame"], 40)
 +        self.assertEqual(result[1]["start_frame"], 40)
-+        self.assertEqual(result[1]["end_frame"], 70)
-+        self.assertEqual(result[2]["start_frame"], 70)
-+        self.assertEqual(result[2]["end_frame"], 80)
++        self.assertEqual(result[1]["end_frame"], 80)
++        self.assertEqual(result[2]["start_frame"], 80)
++        self.assertEqual(result[2]["end_frame"], 120)
 +
 +    def test_ignores_blank_rows(self):
 +        result = normalize_timeline(
-+            [["Stand still.", 1], ["", None]],
++            [["Stand still.", 2], ["", None]],
 +            fps=20,
 +        )
 +        self.assertEqual(len(result), 1)
@@ -273,7 +279,7 @@ new file mode 100644
 +    def test_rejects_more_than_eight_seconds(self):
 +        with self.assertRaisesRegex(ValueError, "may not exceed 8 seconds"):
 +            normalize_timeline(
-+                [["Walk.", 4], ["Wave.", 4], ["Sit.", 1]],
++                [["Walk.", 4], ["Wave.", 4], ["Sit.", 2]],
 +                fps=20,
 +            )
 +
