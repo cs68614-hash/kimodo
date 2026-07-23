@@ -28,6 +28,16 @@ def ensure_soma_assets() -> Path:
             repo_type="model",
             local_dir=target,
         )
+    # Spaces can omit `.pt` files during repository uploads. Deployment stores
+    # these weights as `.bin`, then restores the names SOMA-X expects.
+    aliases = (
+        (target / "correctives_model.bin", target / "correctives_model.pt"),
+        (target / "MHR" / "mhr_model_lod6.bin", target / "MHR" / "mhr_model_lod6.pt"),
+    )
+    for source, destination in aliases:
+        if source.exists() and not destination.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
     return target
 
 
