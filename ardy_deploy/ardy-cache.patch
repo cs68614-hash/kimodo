@@ -1,0 +1,15 @@
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -3,6 +3,11 @@ import os
+ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+ # Load models locally (no external text-encoder service) and prefer the HF cache.
+ os.environ.setdefault("TEXT_ENCODER_MODE", "local")
++# README `preload_from_hub` is mounted read-only at runtime. Keep Xet's mutable
++# chunk cache and logs in /tmp, while resolving preloaded model snapshots from
++# the normal Hub cache before attempting any network download.
++os.environ.setdefault("HF_XET_CACHE", "/tmp/huggingface-xet")
++os.environ.setdefault("LOCAL_CACHE", "true")
+ 
+ import base64
+ import gzip
