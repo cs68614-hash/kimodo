@@ -83,3 +83,38 @@ jobs:
           api.request_space_hardware(repo_id=repo_id, hardware="zero-a10g")
           print(f"Space deployed to https://huggingface.co/spaces/{repo_id}")
           PY
+
+      - name: Verify Space build
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          import time
+
+          import requests
+          from huggingface_hub import HfApi
+
+          token = os.environ["HF_TOKEN"]
+          api = HfApi(token=token)
+          username = api.whoami()["name"]
+          repo_id = f"{username}/gem-x-motion-capture"
+
+          stage = "BUILDING"
+          for _ in range(24):
+              runtime = api.get_space_runtime(repo_id)
+              stage = runtime.stage
+              print(f"Space stage: {stage}", flush=True)
+              if stage in {"RUNNING", "BUILD_ERROR", "RUNTIME_ERROR"}:
+                  break
+              time.sleep(10)
+
+          if stage != "RUNNING":
+              response = requests.get(
+                  f"https://huggingface.co/api/spaces/{repo_id}/logs/build",
+                  headers={"Authorization": f"Bearer {token}"},
+                  timeout=30,
+              )
+              print(response.text[-30000:])
+              raise SystemExit(f"Space did not become RUNNING (stage={stage})")
+          PY
