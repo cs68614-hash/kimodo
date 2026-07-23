@@ -26,5 +26,5 @@ The source pipeline is NVIDIA GEM-X. Model weights are downloaded from
 `nvidia/GEM-X` and are governed by the NVIDIA Open Model License Agreement.
 The application code and GEM-X source are Apache-2.0.
 
-For best results, use a 2–4 second clip with one fully visible person. The
+For best results, use a 1–2 second clip with one fully visible person. The
 first run is slower because model assets are downloaded and cached.
