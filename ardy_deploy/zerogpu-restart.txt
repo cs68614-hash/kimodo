@@ -1,0 +1,5 @@
+ZeroGPU restart marker
+
+Reason: Hugging Face ZeroGPU worker initialization failed with cudaErrorECCUncorrectable before ARDY inference began.
+Requested: 2026-07-23T08:38:00Z
+No application code changed.
