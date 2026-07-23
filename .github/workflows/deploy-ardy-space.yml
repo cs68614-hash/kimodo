@@ -80,6 +80,17 @@ jobs:
               ],
               check=True,
           )
+          subprocess.run(
+              [
+                  "git",
+                  "-C",
+                  str(source_dir),
+                  "apply",
+                  "--recount",
+                  str(root / "ardy_deploy" / "ardy-cache.patch"),
+              ],
+              check=True,
+          )
           readme_path = source_dir / "README.md"
           readme_text = readme_path.read_text(encoding="utf-8")
           if not readme_text.startswith("---\n"):
@@ -105,7 +116,9 @@ jobs:
                   "\npreload_from_hub:\n"
                   "  - unsloth/llama-3-8b-Instruct\n"
                   "  - McGill-NLP/LLM2Vec-Meta-Llama-3-8B-Instruct-mntp\n"
-                  "  - McGill-NLP/LLM2Vec-Meta-Llama-3-8B-Instruct-mntp-supervised"
+                  "  - McGill-NLP/LLM2Vec-Meta-Llama-3-8B-Instruct-mntp-supervised\n"
+                  "  - nvidia/ARDY-Core-RP-20FPS-Horizon40\n"
+                  "  - nvidia/ARDY-G1-RP-25FPS-Horizon52"
               )
 
           readme_path.write_text(frontmatter + body, encoding="utf-8")
