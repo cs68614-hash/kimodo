@@ -12,7 +12,7 @@ import gradio as gr
 import spaces
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-MAX_SECONDS = 8
+MAX_SECONDS = 4
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -49,7 +49,7 @@ def _prepare_video(source: str, destination: Path) -> None:
     )
 
 
-@spaces.GPU(duration=180)
+@spaces.GPU(duration=120)
 def capture_motion(
     video_path: str | None,
     camera_mode: str,
@@ -126,7 +126,7 @@ with gr.Blocks(title="GEM-X Motion Capture") as demo:
         # GEM-X 视频动作捕捉
 
         上传单人短视频，生成 NVIDIA SOMA 全身动作和 Blender BVH。
-        为适配 ZeroGPU，视频会自动截取前 8 秒、转为 30 FPS。
+        为适配 ZeroGPU，视频会自动截取前 4 秒、转为 30 FPS。
         """
     )
     with gr.Row():
