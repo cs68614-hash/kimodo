@@ -1,0 +1,86 @@
+name: Deploy GEM-X Hugging Face Space
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - deploy/gem-x-zero-gpu
+    paths:
+      - gem_x_deploy/**
+      - .github/workflows/deploy-gem-x-space.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-gem-x-space
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.HF_TOKEN != '' }}
+    steps:
+      - name: Check out deployment repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Assemble GEM-X Space source
+        run: |
+          export GIT_LFS_SKIP_SMUDGE=1
+          git clone --depth 1 https://github.com/NVlabs/GEM-X.git space
+          git clone --depth 1 https://github.com/NVlabs/SOMA-X.git space/third_party/soma
+          env -u GIT_LFS_SKIP_SMUDGE git clone --depth 1 https://github.com/NVIDIA/soma-retargeter.git retargeter
+          cp retargeter/soma_retargeter/configs/soma/soma_zero_frame0.bvh space/assets/soma_zero_frame0.bvh
+          cp gem_x_deploy/README.md space/README.md
+          cp gem_x_deploy/app.py space/app.py
+          cp gem_x_deploy/space_runner.py space/space_runner.py
+          cp gem_x_deploy/space_bvh.py space/space_bvh.py
+          cp gem_x_deploy/requirements.txt space/requirements.txt
+          cp gem_x_deploy/packages.txt space/packages.txt
+          find space -name .git -type d -prune -exec rm -rf {} +
+
+      - name: Install Hugging Face Hub client
+        run: python -m pip install --upgrade "huggingface_hub>=1.0"
+
+      - name: Create and deploy ZeroGPU Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          token = os.environ["HF_TOKEN"]
+          api = HfApi(token=token)
+          username = api.whoami()["name"]
+          repo_id = f"{username}/gem-x-motion-capture"
+
+          api.create_repo(
+              repo_id=repo_id,
+              repo_type="space",
+              space_sdk="gradio",
+              exist_ok=True,
+          )
+          api.add_space_secret(repo_id=repo_id, key="HF_TOKEN", value=token)
+          api.upload_folder(
+              repo_id=repo_id,
+              repo_type="space",
+              folder_path="space",
+              ignore_patterns=[
+                  "**/__pycache__/**",
+                  "**/*.pyc",
+                  "assets/*.gif",
+                  "third_party/**/assets/**",
+                  "third_party/**/docs/**",
+                  "third_party/**/tests/**",
+              ],
+              commit_message="Deploy GEM-X ZeroGPU motion capture",
+          )
+          api.request_space_hardware(repo_id=repo_id, hardware="zero-a10g")
+          print(f"Space deployed to https://huggingface.co/spaces/{repo_id}")
+          PY
