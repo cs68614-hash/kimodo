@@ -110,8 +110,9 @@ jobs:
               time.sleep(10)
 
           if stage != "RUNNING":
+              log_kind = "run" if stage == "RUNTIME_ERROR" else "build"
               response = httpx.get(
-                  f"https://huggingface.co/api/spaces/{repo_id}/logs/build",
+                  f"https://huggingface.co/api/spaces/{repo_id}/logs/{log_kind}",
                   headers={"Authorization": f"Bearer {token}"},
                   timeout=30,
               )
