@@ -137,9 +137,19 @@ jobs:
           host = host_response.json()["host"].rstrip("/")
           base_url = host if host.startswith("http") else f"https://{host}"
 
+          jwt_response = httpx.get(
+              f"https://huggingface.co/api/spaces/{repo_id}/jwt",
+              headers=headers,
+              timeout=30,
+          )
+          jwt_response.raise_for_status()
+          spaces_jwt = jwt_response.json()["token"]
+          cookies = {"spaces-jwt": spaces_jwt}
+
           root_response = httpx.get(
               base_url,
               headers=headers,
+              cookies=cookies,
               follow_redirects=True,
               timeout=60,
           )
@@ -156,6 +166,7 @@ jobs:
           config_response = httpx.get(
               f"{base_url}/config",
               headers=headers,
+              cookies=cookies,
               follow_redirects=True,
               timeout=60,
           )
@@ -172,6 +183,7 @@ jobs:
           api_response = httpx.get(
               f"{base_url}/gradio_api/info",
               headers=headers,
+              cookies=cookies,
               follow_redirects=True,
               timeout=60,
           )
