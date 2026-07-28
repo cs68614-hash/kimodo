@@ -1,8 +1,6 @@
-torch==2.8.0
-torchvision==0.23.0
-gradio>=5.49,<7
-spaces>=0.40
-huggingface_hub>=0.34
+# Gradio, spaces, huggingface_hub, torch and torchvision are managed by
+# the Hugging Face ZeroGPU runtime. Reinstalling them here can mismatch the
+# frontend bundle and leave the page without its component CSS.
 diffusers>=0.35,<0.40
 transformers>=4.48,<6
 accelerate>=1.2
