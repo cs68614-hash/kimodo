@@ -8,8 +8,9 @@ sdk_version: 5.49.1
 app_file: app.py
 pinned: false
 suggested_hardware: zero-a10g
+startup_duration_timeout: 20m
 preload_from_hub:
-  - tencent/Hunyuan3D-2 hunyuan3d-dit-v2-0/*
+  - tencent/Hunyuan3D-2 hunyuan3d-dit-v2-0/config.yaml,hunyuan3d-dit-v2-0/model.fp16.safetensors
 ---
 
 # Image to 3D — private ZeroGPU edition
