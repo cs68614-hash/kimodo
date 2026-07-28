@@ -258,7 +258,10 @@ with gr.Blocks(title="Image → 3D (ZeroGPU)", css=CSS) as demo:
             generate_button = gr.Button("生成 3D", variant="primary")
 
         with gr.Column(scale=1):
-            model_preview = gr.Model3D(label="3D 预览", clear_color=[0.05, 0.05, 0.06, 1.0])
+            model_preview = gr.Model3D(
+                label="3D 预览",
+                clear_color=(0.05, 0.05, 0.06, 1.0),
+            )
             downloads = gr.Files(label="下载 GLB / OBJ / STL / 3MF")
             processed_image = gr.Image(label="实际送入模型的图片", interactive=False)
             stats = gr.JSON(label="网格信息")
