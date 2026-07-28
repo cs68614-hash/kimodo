@@ -14,6 +14,7 @@ import spaces
 # ZeroGPU patches torch when ``spaces`` is imported. Keep this import order.
 import torch
 import trimesh
+from huggingface_hub import hf_hub_download
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent
@@ -31,7 +32,30 @@ OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def _load_pipeline() -> Hunyuan3DDiTFlowMatchingPipeline:
-    """Load directly onto CUDA so ZeroGPU can optimize model placement."""
+    """Link the two required cached files, then load directly onto CUDA.
+
+    Hunyuan3D's stock loader snapshots every file in the model subfolder, which
+    includes several duplicate 4.9GB checkpoints. The Space only needs the
+    config and fp16 safetensors checkpoint.
+    """
+    local_root = Path(tempfile.gettempdir()) / "hy3dgen_models"
+    model_dir = local_root / MODEL_ID / MODEL_SUBFOLDER
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    for filename in ("config.yaml", "model.fp16.safetensors"):
+        cached_path = Path(
+            hf_hub_download(
+                repo_id=MODEL_ID,
+                filename=f"{MODEL_SUBFOLDER}/{filename}",
+            )
+        )
+        destination = model_dir / filename
+        if destination.is_symlink() or destination.exists():
+            destination.unlink()
+        destination.symlink_to(cached_path)
+
+    os.environ["HY3DGEN_MODELS"] = str(local_root)
+    print(f"Loading {MODEL_ID}/{MODEL_SUBFOLDER} on ZeroGPU...", flush=True)
     pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
         MODEL_ID,
         subfolder=MODEL_SUBFOLDER,
@@ -40,6 +64,7 @@ def _load_pipeline() -> Hunyuan3DDiTFlowMatchingPipeline:
         use_safetensors=True,
         variant="fp16",
     )
+    print("Hunyuan3D shape pipeline is ready.", flush=True)
     return pipeline
 
 
