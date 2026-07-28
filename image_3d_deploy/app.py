@@ -295,4 +295,8 @@ with gr.Blocks(title="Image → 3D (ZeroGPU)", css=CSS) as demo:
         api_name="generate_3d",
     )
 
-demo.queue(max_size=10).launch(mcp_server=True)
+if __name__ == "__main__":
+    # This Space is a Gradio web app and API. Enabling the optional MCP server
+    # changes the route/bootstrap behavior and can make the embedded Space fall
+    # back to Gradio's raw API login page when API discovery times out.
+    demo.queue(max_size=10).launch()
