@@ -126,4 +126,63 @@ jobs:
               )
               print(response.text[-30000:])
               raise SystemExit(f"Space did not become RUNNING (stage={stage})")
+
+          headers = {"Authorization": f"Bearer {token}"}
+          host_response = httpx.get(
+              f"https://huggingface.co/api/spaces/{repo_id}/host",
+              headers=headers,
+              timeout=30,
+          )
+          host_response.raise_for_status()
+          host = host_response.json()["host"].rstrip("/")
+          base_url = host if host.startswith("http") else f"https://{host}"
+
+          root_response = httpx.get(
+              base_url,
+              headers=headers,
+              follow_redirects=True,
+              timeout=60,
+          )
+          print(
+              f"Root page: status={root_response.status_code}, "
+              f"content-type={root_response.headers.get('content-type')}",
+              flush=True,
+          )
+          root_response.raise_for_status()
+          root_text = root_response.text
+          if "Could not get API info" in root_text or "<h1>Login</h1>" in root_text:
+              raise SystemExit("Space root returned Gradio's broken API login page")
+
+          config_response = httpx.get(
+              f"{base_url}/config",
+              headers=headers,
+              follow_redirects=True,
+              timeout=60,
+          )
+          print(
+              f"Gradio config: status={config_response.status_code}, "
+              f"content-type={config_response.headers.get('content-type')}",
+              flush=True,
+          )
+          config_response.raise_for_status()
+          config = config_response.json()
+          if not config.get("components") or not config.get("dependencies"):
+              raise SystemExit("Gradio config is missing components or dependencies")
+
+          api_response = httpx.get(
+              f"{base_url}/gradio_api/info",
+              headers=headers,
+              follow_redirects=True,
+              timeout=60,
+          )
+          print(
+              f"Gradio API info: status={api_response.status_code}, "
+              f"content-type={api_response.headers.get('content-type')}",
+              flush=True,
+          )
+          api_response.raise_for_status()
+          api_info = api_response.json()
+          named_endpoints = api_info.get("named_endpoints", {})
+          if "/generate_3d" not in named_endpoints:
+              raise SystemExit("Expected /generate_3d endpoint is missing")
           PY
