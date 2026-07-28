@@ -1,0 +1,130 @@
+name: Deploy Image-3D Hugging Face Space
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - deploy/image-3d-zero-gpu
+    paths:
+      - image_3d_deploy/**
+      - .github/workflows/deploy-image-3d-space.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-image-3d-space
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out deployment repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Assemble Image-3D Space source
+        run: |
+          git init space
+          git -C space remote add origin https://github.com/animede/image-3d.git
+          git -C space fetch --depth 1 origin 8634058dd7e96ac0f6462f93a52dfe2cc48fe9f7
+          git -C space checkout --detach FETCH_HEAD
+          git init hunyuan3d
+          git -C hunyuan3d remote add origin https://github.com/Tencent/Hunyuan3D-2.git
+          git -C hunyuan3d fetch --depth 1 origin f8db63096c8282cb27354314d896feba5ba6ff8a
+          git -C hunyuan3d checkout --detach FETCH_HEAD
+          mkdir -p space/third_party/Hunyuan3D-2
+          cp -R hunyuan3d/hy3dgen space/third_party/Hunyuan3D-2/hy3dgen
+          mkdir -p space/LICENSES
+          cp hunyuan3d/LICENSE space/LICENSES/HUNYUAN3D-LICENSE
+          cp hunyuan3d/NOTICE space/LICENSES/HUNYUAN3D-NOTICE
+          cp image_3d_deploy/README.md space/README.md
+          cp image_3d_deploy/app.py space/app.py
+          cp image_3d_deploy/requirements.txt space/requirements.txt
+          find space -name .git -type d -prune -exec rm -rf {} +
+
+      - name: Install Hugging Face Hub client
+        run: python -m pip install --upgrade "huggingface_hub>=1.0"
+
+      - name: Create and deploy private ZeroGPU Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          token = os.environ["HF_TOKEN"]
+          api = HfApi(token=token)
+          username = api.whoami()["name"]
+          repo_id = f"{username}/image-3d-zero-gpu"
+
+          api.create_repo(
+              repo_id=repo_id,
+              repo_type="space",
+              space_sdk="gradio",
+              private=True,
+              exist_ok=True,
+          )
+          api.update_repo_visibility(repo_id=repo_id, repo_type="space", private=True)
+          api.upload_folder(
+              repo_id=repo_id,
+              repo_type="space",
+              folder_path="space",
+              ignore_patterns=[
+                  "**/__pycache__/**",
+                  "**/*.pyc",
+                  "docs/**",
+                  "tests/**",
+                  "web/**",
+                  "server/static/**",
+                  "server/texrefine.py",
+                  "server/texture.py",
+                  "third_party/Hunyuan3D-2/hy3dgen/texgen/**",
+              ],
+              commit_message="Deploy private Image-3D ZeroGPU Space",
+          )
+          api.request_space_hardware(repo_id=repo_id, hardware="zero-a10g")
+          print(f"Space deployed to https://huggingface.co/spaces/{repo_id}")
+          PY
+
+      - name: Verify Space build
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          import time
+
+          import httpx
+          from huggingface_hub import HfApi
+
+          token = os.environ["HF_TOKEN"]
+          api = HfApi(token=token)
+          username = api.whoami()["name"]
+          repo_id = f"{username}/image-3d-zero-gpu"
+
+          stage = "BUILDING"
+          for _ in range(60):
+              runtime = api.get_space_runtime(repo_id)
+              stage = runtime.stage
+              print(f"Space stage: {stage}", flush=True)
+              if stage in {"RUNNING", "BUILD_ERROR", "RUNTIME_ERROR", "CONFIG_ERROR"}:
+                  break
+              time.sleep(10)
+
+          if stage != "RUNNING":
+              log_kind = "run" if stage == "RUNTIME_ERROR" else "build"
+              response = httpx.get(
+                  f"https://huggingface.co/api/spaces/{repo_id}/logs/{log_kind}",
+                  headers={"Authorization": f"Bearer {token}"},
+                  timeout=30,
+              )
+              print(response.text[-30000:])
+              raise SystemExit(f"Space did not become RUNNING (stage={stage})")
+          PY
