@@ -1,6 +1,8 @@
-# Gradio, spaces, huggingface_hub, torch and torchvision are managed by
-# the Hugging Face ZeroGPU runtime. Reinstalling them here can mismatch the
-# frontend bundle and leave the page without its component CSS.
+# Gradio, spaces and huggingface_hub are managed by the Hugging Face runtime.
+# Keep the supported torch/torchvision pair explicit because Hunyuan3D imports
+# torchvision while the current ZeroGPU base image does not provide it.
+torch==2.8.0
+torchvision==0.23.0
 diffusers>=0.35,<0.40
 transformers>=4.48,<6
 accelerate>=1.2
